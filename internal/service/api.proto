@@ -1,0 +1,48 @@
+// protoc --proto_path=$GOPATH/src:. --gogofaster_out=plugins=grpc:. api.proto
+syntax = "proto3";
+
+package service;
+
+service DirSync {
+    rpc SyncStructure(StructureRequest) returns (StructureResponse) {}
+    rpc GetChecksum(ChecksumRequest) returns (ChecksumResponse) {}
+    rpc UploadBlocks(stream Block) returns (UploadResponse) {}
+}
+
+message StructureRequest {
+    string sep = 1;
+    repeated Element elements = 2;
+}
+
+message Element {
+    string path = 1;
+    bool is_dir = 2;
+}
+
+message StructureResponse {
+}
+
+message ChecksumRequest {
+    string path = 1;
+    uint32 block_size = 3;
+}
+
+message ChecksumResponse {
+    string path = 1;
+    string checksum = 2;
+    repeated Checksum checksums = 3;
+}
+
+message Checksum {
+    uint32 weak = 1;
+    string strong = 2;
+}
+
+message UploadResponse {
+}
+
+message Block {
+    bool reference = 1;
+    uint32 number = 2;
+    bytes payload = 3;
+}

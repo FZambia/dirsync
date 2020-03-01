@@ -1,0 +1,5 @@
+vendor/
+dirsync_from/
+dirsync_to/
+
+.vscode
