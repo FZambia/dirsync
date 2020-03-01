@@ -12,6 +12,13 @@ Package dirsync allows to sync specified directory from client to server over GR
 * Possibility to set custom block size
 * Instant synchronization start by watching file system events inside directory
 * Synchronization deduping if currently in process of synchronization
+* Works on Unix only at moment
+
+### How it works
+
+First you need to start server and provide a directory to sync to. Then start a client part and provide a directory to sync changes from.
+
+As soon as client started it synchronizes its directory content with server. First directory structure is synchronized, missing files and directories get created, unnecessary get removed inside server side folder. Then client starts synchronization of each individual file. It requests file information from server. Server replies with SHA-256 file checksum and a list of rolling checksums (weak adler32 and strong SHA-256 for each file block). The size of each file block can be configured (default is 4kb). Client receives file information. If local file checksum matches server side version checksum then nothing will be sent to sync file state – we consider files are the same. If checksums differ then rsync-like algorithm to search for blocks that already exist in server file version will be used. Thus only references to existing blocks and changed parts of file will be sent over network. For newly created files we just stream contents to server without attempt to utilize rsync algorithm. Client process monitors directory for changes (using `fsnotify` library, recursively) and triggers directory synchronization process again if needed.
 
 ### Quick start
 
@@ -44,7 +51,8 @@ This was a weekend project, it works but still a lot of things can be improved:
 * Concurrent upload
 * Per-operation changes - at this moment we synchronize all structure on every change
 * Do not upload the same file twice
+* Make it cross-platform to handle os specific path separators
 * Better error handling - at moment client exits on every error
 * More clever decision on when to use rolling checksum upload
 * Bidirectional synchronization 🔥
-* This list is endless actually ...
+* This list is endless actually ... Just use Dropbox maybe?

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/FZambia/dirsync/internal/service"
+
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"

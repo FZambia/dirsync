@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-// SHA256Checksum ...
+// SHA256Checksum returns SHA-256 checksum of file in path.
 func SHA256Checksum(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
