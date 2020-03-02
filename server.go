@@ -3,6 +3,7 @@ package dirsync
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ type Server struct {
 	mu             sync.RWMutex
 	absDir         string
 	blockSize      int64
-	checksumToPath map[string]string
+	pathToChecksum map[string]string
 }
 
 // NewServer creates new Server.
@@ -41,11 +42,38 @@ func NewServer(dir string, blockSize int64) (*Server, error) {
 	return &Server{
 		absDir:         absDir,
 		blockSize:      blockSize,
-		checksumToPath: make(map[string]string),
+		pathToChecksum: make(map[string]string),
 	}, nil
 }
 
-// SyncStructure ...
+func (s *Server) updateChecksumMapping(absPath, checksum string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pathToChecksum[absPath] = checksum
+}
+
+func (s *Server) deleteChecksumMapping(absPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.pathToChecksum, absPath)
+}
+
+func (s *Server) copyExisting(absPath, incomingChecksum string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// TODO: use a better data structure to speed up same file lookup.
+	for sameFilePath, cs := range s.pathToChecksum {
+		if cs != incomingChecksum {
+			continue
+		}
+		if err := fsutil.ForceCopy(sameFilePath, absPath); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// SyncStructure synchronizes directories and removes non-actual directories and files.
 func (s *Server) SyncStructure(ctx context.Context, req *service.StructureRequest) (*service.StructureResponse, error) {
 	pathMap := make(map[string]struct{}, len(req.GetElements()))
 
@@ -74,6 +102,7 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 			if err != nil && !os.IsNotExist(err) {
 				return err
 			}
+			s.deleteChecksumMapping(path)
 		}
 		return nil
 	})
@@ -84,7 +113,7 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 	return &service.StructureResponse{}, nil
 }
 
-// GetChecksum ...
+// GetChecksum returns checksum file info.
 func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) (*service.ChecksumResponse, error) {
 	checksums := make([]*service.Checksum, 0)
 
@@ -93,6 +122,14 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 	fileChecksum, err := fsutil.SHA256Checksum(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			if s.copyExisting(absPath, req.GetChecksum()) {
+				log.Println(req.Path, "copied from same file")
+				s.updateChecksumMapping(absPath, req.GetChecksum())
+				return &service.ChecksumResponse{
+					Checksum: req.GetChecksum(),
+					Path:     req.Path,
+				}, nil
+			}
 			return &service.ChecksumResponse{
 				Path: req.Path,
 			}, nil
@@ -102,9 +139,19 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 
 	if fileChecksum == req.GetChecksum() {
 		log.Println("file checksum match", req.Path)
+		s.updateChecksumMapping(absPath, req.GetChecksum())
 		return &service.ChecksumResponse{
 			Path:     req.Path,
 			Checksum: req.GetChecksum(),
+		}, nil
+	}
+
+	if s.copyExisting(absPath, req.GetChecksum()) {
+		log.Println(req.Path, "copied from same file")
+		s.updateChecksumMapping(absPath, req.GetChecksum())
+		return &service.ChecksumResponse{
+			Checksum: req.GetChecksum(),
+			Path:     req.Path,
 		}, nil
 	}
 
@@ -164,7 +211,8 @@ func extractPath(ctx context.Context) (string, error) {
 	return path, nil
 }
 
-// UploadBlocks ...
+// UploadBlocks accepts file block stream from client to create modified
+// file using changes and references to original blocks.
 func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 	path, err := extractPath(stream.Context())
 	if err != nil {
@@ -190,6 +238,7 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 	}
 	defer file.Close()
 
+	fileHash := sha256.New()
 	startTime := time.Now()
 	for {
 		block, err := stream.Recv()
@@ -197,6 +246,8 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			if err == io.EOF {
 				// Atomically move tmp file to directory.
 				os.Rename(tmpfile.Name(), absPath)
+				fileChecksum := hex.EncodeToString(fileHash.Sum(nil))
+				s.updateChecksumMapping(absPath, fileChecksum)
 				fmt.Printf("uploading %s, elapsed: %s\n", path, time.Since(startTime))
 				return stream.SendAndClose(&service.UploadResponse{})
 			}
@@ -210,11 +261,13 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			if err != nil {
 				return err
 			}
+			fileHash.Write(buf[:n])
 		} else {
 			_, err := tmpfile.Write(block.GetPayload())
 			if err != nil {
 				return err
 			}
+			fileHash.Write(block.GetPayload())
 		}
 	}
 }

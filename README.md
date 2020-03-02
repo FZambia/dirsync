@@ -2,10 +2,11 @@ Package dirsync allows to sync specified directory from client to server over GR
 
 ### Highlights
 
-* Works with recursive directories
-* Detects no changes in file with SHA-256 checksum
+* Works with subdirectories
+* Detects that file did not change using SHA-256 checksum
 * Rsync-like approach to sync only modified blocks of files
-* Directory tree synchronization on start
+* Keeps in-memory checksum mapping to prevent full uploading of the same file twice
+* Full directory tree synchronization on client start
 * GRPC transport for client-server RPC
 * GRPC streaming to upload new file and file changes
 * Optional GZIP compression to reduce bandwidth used
@@ -19,7 +20,7 @@ Package dirsync allows to sync specified directory from client to server over GR
 
 First you need to start server and provide a directory to sync to. Then start a client part and provide a directory to sync changes from.
 
-As soon as client started it synchronizes its directory content with server. First directory structure is synchronized, missing directories get created, unnecessary directories and files removed inside server side folder. Then client starts synchronization of each individual file. It requests file information from server providing local file SHA-256 checksum. Server replies with SHA-256 file checksum and a list of rolling checksums (weak adler32 and strong SHA-256 for each file block). The size of each file block can be configured (default is 4kb). Client receives file information. If local file checksum matches server side version checksum then nothing will be sent to sync file state – we consider files are the same. If checksums differ then rsync-like algorithm to search for blocks that already exist in server file version will be used. Thus only references to existing blocks and changed parts of file will be sent over network. For newly created files we just stream contents to server without attempt to utilize rsync algorithm. Client process monitors directory for changes (using `fsnotify` library, recursively) and triggers synchronization process again if needed.
+As soon as client started it synchronizes its directory content with server. First directory structure is synchronized, missing directories get created, unnecessary directories and files removed inside server side folder. Then client starts synchronization of each individual file. It requests file information from server providing local file SHA-256 checksum. Server replies with SHA-256 file checksum and a list of rolling checksums (weak adler32 and strong SHA-256 for each file block). The size of each file block can be configured (default is 4kb). Client receives file information. If local file checksum matches server side version checksum then nothing will be sent to sync file state – we consider files are the same. If checksums differ then rsync-like algorithm to search for blocks that already exist in server file version will be used. Thus only references to existing blocks and changed parts of file will be sent over network. For newly created files we just stream contents to server without attempt to utilize rsync algorithm. Also new files have a chance to avoid full uploading due to in-memory cache of file checksum on server. Client process monitors directory for changes (using `fsnotify` library, recursively) and triggers synchronization process again if needed.
 
 ### Quick start
 

@@ -23,7 +23,7 @@ func SHA256Checksum(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// FileChunker ...
+// FileChunker allows to iterate over file by chunks.
 type FileChunker struct {
 	path string
 	size int64
@@ -61,7 +61,7 @@ func (c *FileChunker) Next() ([]byte, bool, error) {
 	return buf[:], true, nil
 }
 
-// FileIterator ...
+// FileIterator allows to iterate over file with offset control.
 type FileIterator struct {
 	path   string
 	size   int64
@@ -135,4 +135,26 @@ func CleanPath(path string) string {
 
 	// Clean the path again for good measure.
 	return filepath.Clean(path)
+}
+
+// ForceCopy the src file to dst. Any existing file will be overwritten and
+// will not copy file attributes.
+func ForceCopy(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
 }

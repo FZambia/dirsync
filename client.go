@@ -16,7 +16,6 @@ import (
 	"github.com/FZambia/dirsync/internal/service"
 
 	"github.com/dc0d/dirwatch"
-	"github.com/fsnotify/fsnotify"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -44,10 +43,6 @@ func (s *Client) Sync(ctx context.Context) error {
 	triggerCh := make(chan struct{}, 1)
 
 	notify := func(ev dirwatch.Event) {
-		if ev.Op == fsnotify.Chmod {
-			// Not interesting as we don't bother about permissions.
-			return
-		}
 		log.Println("sth changed", ev.Name, ev.Op.String())
 		select {
 		case triggerCh <- struct{}{}:
