@@ -108,14 +108,9 @@ func getChecksumMap(checksums []*service.Checksum) map[uint32]map[string]int64 {
 }
 
 func (s *Client) syncFile(path string) error {
+	absPath := filepath.Join(s.absDir, path)
 
-	checksums, err := s.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path})
-	if err != nil {
-		return fmt.Errorf("error GetChecksum: %w", err)
-	}
-	log.Printf("checksum response for %s, num blocks: %d", checksums.Path, len(checksums.Checksums))
-
-	fileChecksum, err := fsutil.SHA256Checksum(filepath.Join(s.absDir, path))
+	fileChecksum, err := fsutil.SHA256Checksum(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Printf("%s does not exist, nothing to sync", path)
@@ -124,8 +119,14 @@ func (s *Client) syncFile(path string) error {
 		return err
 	}
 
+	checksums, err := s.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path, Checksum: fileChecksum})
+	if err != nil {
+		return fmt.Errorf("error GetChecksum: %w", err)
+	}
+	log.Printf("checksum response for %s, num blocks: %d", checksums.Path, len(checksums.Checksums))
+
 	if fileChecksum == checksums.GetChecksum() {
-		log.Printf("%s checksum matched, nothing to sync", path)
+		log.Printf("%s checksum matched, already synced", path)
 		return nil
 	}
 

@@ -24,6 +24,7 @@ message StructureResponse {
 
 message ChecksumRequest {
     string path = 1;
+    string checksum = 2;
     uint32 block_size = 3;
 }
 

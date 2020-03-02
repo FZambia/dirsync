@@ -3,7 +3,6 @@ package dirsync
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/FZambia/dirsync/internal/fsutil"
@@ -22,8 +22,10 @@ import (
 
 // Server keeps directory synchronized with client.
 type Server struct {
-	absDir    string
-	blockSize int64
+	mu             sync.RWMutex
+	absDir         string
+	blockSize      int64
+	checksumToPath map[string]string
 }
 
 // NewServer creates new Server.
@@ -37,8 +39,9 @@ func NewServer(dir string, blockSize int64) (*Server, error) {
 	}
 
 	return &Server{
-		absDir:    absDir,
-		blockSize: blockSize,
+		absDir:         absDir,
+		blockSize:      blockSize,
+		checksumToPath: make(map[string]string),
 	}, nil
 }
 
@@ -55,13 +58,6 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			log.Println("creating file", path)
-			f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0755)
-			if err != nil {
-				return nil, err
-			}
-			f.Close()
 		}
 	}
 
@@ -92,19 +88,38 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) (*service.ChecksumResponse, error) {
 	checksums := make([]*service.Checksum, 0)
 
-	chunker, err := fsutil.NewFileChunker(filepath.Join(s.absDir, req.Path), s.blockSize)
+	absPath := filepath.Join(s.absDir, fsutil.CleanPath(req.Path))
+
+	fileChecksum, err := fsutil.SHA256Checksum(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &service.ChecksumResponse{
-				Path:      req.Path,
-				Checksums: checksums,
+				Path: req.Path,
+			}, nil
+		}
+		return nil, err
+	}
+
+	if fileChecksum == req.GetChecksum() {
+		log.Println("file checksum match", req.Path)
+		return &service.ChecksumResponse{
+			Path:     req.Path,
+			Checksum: req.GetChecksum(),
+		}, nil
+	}
+
+	chunker, err := fsutil.NewFileChunker(absPath, s.blockSize)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &service.ChecksumResponse{
+				Path: req.Path,
 			}, nil
 		}
 		return nil, err
 	}
 	defer chunker.Close()
 
-	fileChecksum := sha256.New()
+	fileHash := sha256.New()
 
 	for {
 		chunk, hasMore, err := chunker.Next()
@@ -115,7 +130,7 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 			break
 		}
 
-		fileChecksum.Write(chunk)
+		fileHash.Write(chunk)
 		cs := &service.Checksum{
 			Weak:   hashutil.WeakChecksum(chunk),
 			Strong: hashutil.StrongChecksum(chunk),
@@ -128,7 +143,7 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 
 	return &service.ChecksumResponse{
 		Path:      req.Path,
-		Checksum:  hex.EncodeToString(fileChecksum.Sum(nil)),
+		Checksum:  fileChecksum,
 		Checksums: checksums,
 	}, nil
 }
@@ -162,9 +177,14 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 	}
 	defer tmpfile.Close()
 
-	fpath := filepath.Join(s.absDir, path)
+	absPath := filepath.Join(s.absDir, fsutil.CleanPath(path))
 
-	file, err := os.Open(fpath)
+	err = os.MkdirAll(filepath.Dir(absPath), 0755)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(absPath, os.O_CREATE, 0755)
 	if err != nil {
 		return err
 	}
@@ -176,8 +196,8 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 		if err != nil {
 			if err == io.EOF {
 				// Atomically move tmp file to directory.
-				os.Rename(tmpfile.Name(), fpath)
-				fmt.Printf("elapsed for %s: %s\n", path, time.Since(startTime))
+				os.Rename(tmpfile.Name(), absPath)
+				fmt.Printf("uploading %s, elapsed: %s\n", path, time.Since(startTime))
 				return stream.SendAndClose(&service.UploadResponse{})
 			}
 			return err
@@ -186,9 +206,15 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			file.Seek(int64(block.GetNumber())*s.blockSize, 0)
 			buf := make([]byte, s.blockSize)
 			n, _ := io.ReadFull(file, buf)
-			tmpfile.Write(buf[:n])
+			_, err := tmpfile.Write(buf[:n])
+			if err != nil {
+				return err
+			}
 		} else {
-			tmpfile.Write(block.GetPayload())
+			_, err := tmpfile.Write(block.GetPayload())
+			if err != nil {
+				return err
+			}
 		}
 	}
 }
