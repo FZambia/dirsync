@@ -219,7 +219,7 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 		return err
 	}
 
-	tmpfile, err := ioutil.TempFile("", "netsync")
+	tmpfile, err := ioutil.TempFile("", "dirsync")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -245,7 +245,10 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 		if err != nil {
 			if err == io.EOF {
 				// Atomically move tmp file to directory.
-				os.Rename(tmpfile.Name(), absPath)
+				err := os.Rename(tmpfile.Name(), absPath)
+				if err != nil {
+					return err
+				}
 				fileChecksum := hex.EncodeToString(fileHash.Sum(nil))
 				s.updateChecksumMapping(absPath, fileChecksum)
 				fmt.Printf("uploading %s, elapsed: %s\n", path, time.Since(startTime))
@@ -254,20 +257,29 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			return err
 		}
 		if block.GetReference() {
-			file.Seek(int64(block.GetNumber())*s.blockSize, 0)
-			buf := make([]byte, s.blockSize)
-			n, _ := io.ReadFull(file, buf)
-			_, err := tmpfile.Write(buf[:n])
+			_, err := file.Seek(int64(block.GetNumber())*s.blockSize, 0)
 			if err != nil {
 				return err
 			}
-			fileHash.Write(buf[:n])
+			buf := make([]byte, s.blockSize)
+			n, _ := io.ReadFull(file, buf)
+			_, err = tmpfile.Write(buf[:n])
+			if err != nil {
+				return err
+			}
+			_, err = fileHash.Write(buf[:n])
+			if err != nil {
+				return err
+			}
 		} else {
 			_, err := tmpfile.Write(block.GetPayload())
 			if err != nil {
 				return err
 			}
-			fileHash.Write(block.GetPayload())
+			_, err = fileHash.Write(block.GetPayload())
+			if err != nil {
+				return err
+			}
 		}
 	}
 }

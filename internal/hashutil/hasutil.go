@@ -6,16 +6,16 @@ import (
 	"hash/adler32"
 )
 
-// WeakChecksum ...
-func WeakChecksum(chunk []byte) uint32 {
+// WeakChecksum uses adler32 hash.
+func WeakChecksum(data []byte) uint32 {
 	weak := adler32.New()
-	weak.Write(chunk)
+	weak.Write(data)
 	return weak.Sum32()
 }
 
-// StrongChecksum ...
-func StrongChecksum(chunk []byte) string {
+// StrongChecksum uses sha256 hash.
+func StrongChecksum(data []byte) string {
 	weak := sha256.New()
-	weak.Write(chunk)
+	weak.Write(data)
 	return hex.EncodeToString(weak.Sum(nil))
 }

@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/dc0d/dirwatch v0.4.3
 	github.com/dc0d/retry v1.2.0 // indirect
-	github.com/fsnotify/fsnotify v1.4.7
+	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.4 // indirect
 	github.com/jessevdk/go-flags v1.4.0

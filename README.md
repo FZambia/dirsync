@@ -57,4 +57,4 @@ This was a weekend project, it works but still a lot of things can be improved:
 * Better error handling - at moment client exits on every error
 * More clever decision on when to use rolling checksum upload
 * Bidirectional synchronization 🔥
-* This list is endless actually ... Just use Dropbox maybe?
+* This list is endless actually ... Just use Rsync or Dropbox maybe? 😄
