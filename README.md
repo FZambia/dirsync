@@ -53,7 +53,6 @@ This was a weekend project, it works but still a lot of things can be improved:
 
 * Multitenancy
 * Concurrent upload
-* Do not upload the same file twice
 * Make it cross-platform to handle os specific path separators
 * Better error handling - at moment client exits on every error
 * More clever decision on when to use rolling checksum upload
