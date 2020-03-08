@@ -72,7 +72,7 @@ func (s *Client) Sync(ctx context.Context) error {
 			log.Printf("finished syncing directory tree, elapsed: %s", time.Since(started))
 			log.Println("start syncing files")
 			started = time.Now()
-			err = s.syncFiles()
+			err = s.syncFiles(syncedAt)
 			if err != nil {
 				return err
 			}
@@ -257,7 +257,7 @@ func (s *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 	return elements, lastModTime, err
 }
 
-func (s *Client) syncFiles() error {
+func (s *Client) syncFiles(lastSynced time.Time) error {
 	err := filepath.Walk(s.absDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -266,6 +266,9 @@ func (s *Client) syncFiles() error {
 			return fmt.Errorf("syncFiles error while walk: %w", err)
 		}
 		if info.IsDir() {
+			return nil
+		}
+		if info.ModTime().Sub(lastSynced) <= 0 {
 			return nil
 		}
 		trimmedPath := strings.TrimPrefix(strings.TrimPrefix(path, s.absDir), string(os.PathSeparator))
