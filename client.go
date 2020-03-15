@@ -21,9 +21,11 @@ import (
 
 // Client synchronizes local directory to server.
 type Client struct {
-	client    service.DirSyncClient
-	absDir    string
-	blockSize int64
+	client           service.DirSyncClient
+	absDir           string
+	blockSize        int64
+	syncedAt         time.Time
+	previousElements map[string]*service.Element
 }
 
 // NewClient creates new Client.
@@ -35,11 +37,16 @@ func NewClient(client service.DirSyncClient, dir string, blockSize int64) (*Clie
 	if info, err := os.Stat(absDir); os.IsNotExist(err) || !info.IsDir() {
 		return nil, errors.New("directory to sync from does not exist")
 	}
-	return &Client{client, absDir, blockSize}, nil
+	return &Client{
+		client:           client,
+		absDir:           absDir,
+		blockSize:        blockSize,
+		previousElements: make(map[string]*service.Element),
+	}, nil
 }
 
 // Sync starts synchronization process until context cancellation.
-func (s *Client) Sync(ctx context.Context) error {
+func (c *Client) Sync(ctx context.Context) error {
 	triggerCh := make(chan struct{}, 1)
 
 	notify := func(ev dirwatch.Event) {
@@ -54,63 +61,11 @@ func (s *Client) Sync(ctx context.Context) error {
 
 	watcher := dirwatch.New(dirwatch.Notify(notify))
 	defer watcher.Stop()
-	watcher.Add(s.absDir, true)
+	watcher.Add(c.absDir, true)
 
-	var syncedAt time.Time
-	var previousElements map[string]*service.Element
 	for {
-		started := time.Now()
-		elements, lastModTime, err := s.getStructureElements()
-		if err != nil {
-			return err
-		}
-		log.Printf("got directory tree structure, elapsed: %s", time.Since(started))
+		c.syncOnce()
 
-		if lastModTime.Sub(syncedAt) > 0 {
-			pathToElement := map[string]*service.Element{}
-			for _, e := range elements {
-				pathToElement[e.GetPath()] = e
-			}
-			started := time.Now()
-			if syncedAt.IsZero() {
-				// Initial tree structure sync.
-				log.Println("start syncing full directory tree")
-				_, err = s.client.SyncStructure(context.Background(), &service.SyncRequest{
-					Sep:      string(os.PathSeparator),
-					Elements: elements,
-				})
-				if err != nil {
-					return err
-				}
-				log.Printf("finished syncing full directory tree, elapsed: %s", time.Since(started))
-			} else {
-				log.Println("start syncing directory tree diff")
-				diff := getStructureDiff(previousElements, pathToElement)
-				if len(diff.created) > 0 || len(diff.deleted) > 0 {
-					log.Printf("send structure difference, created: %d, deleted: %d", len(diff.created), len(diff.deleted))
-					_, err = s.client.DiffStructure(context.Background(), &service.DiffRequest{
-						Sep:     string(os.PathSeparator),
-						Created: diff.created,
-						Deleted: diff.deleted,
-					})
-					if err != nil {
-						return err
-					}
-				}
-				log.Printf("finished syncing directory tree diff, elapsed: %s", time.Since(started))
-			}
-			log.Println("start syncing files")
-			started = time.Now()
-			err = s.syncFiles(syncedAt, elements)
-			if err != nil {
-				return err
-			}
-			log.Printf("finished syncing files, elapsed: %s", time.Since(started))
-			syncedAt = lastModTime
-			previousElements = pathToElement
-		} else {
-			log.Println("no changes detected, nothing to sync")
-		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -118,6 +73,64 @@ func (s *Client) Sync(ctx context.Context) error {
 			continue
 		}
 	}
+}
+
+func (c *Client) syncOnce() error {
+	started := time.Now()
+	elements, lastModTime, err := c.getStructureElements()
+	if err != nil {
+		return err
+	}
+	log.Printf("got directory tree structure, elapsed: %s", time.Since(started))
+
+	if lastModTime.Sub(c.syncedAt) < 0 {
+		log.Println("no changes detected, nothing to sync")
+		return nil
+	}
+
+	pathToElement := map[string]*service.Element{}
+	for _, e := range elements {
+		pathToElement[e.GetPath()] = e
+	}
+
+	started = time.Now()
+	if c.syncedAt.IsZero() {
+		// Initial tree structure sync.
+		log.Println("start syncing full directory tree")
+		_, err = c.client.SyncStructure(context.Background(), &service.SyncRequest{
+			Sep:      string(os.PathSeparator),
+			Elements: elements,
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("finished syncing full directory tree, elapsed: %s", time.Since(started))
+	} else {
+		log.Println("start syncing directory tree diff")
+		diff := getStructureDiff(c.previousElements, pathToElement)
+		if len(diff.created) > 0 || len(diff.deleted) > 0 {
+			log.Printf("send structure difference, created: %d, deleted: %d", len(diff.created), len(diff.deleted))
+			_, err = c.client.DiffStructure(context.Background(), &service.DiffRequest{
+				Sep:     string(os.PathSeparator),
+				Created: diff.created,
+				Deleted: diff.deleted,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		log.Printf("finished syncing directory tree diff, elapsed: %s", time.Since(started))
+	}
+	log.Println("start syncing files")
+	started = time.Now()
+	err = c.syncFiles(c.syncedAt, elements)
+	if err != nil {
+		return err
+	}
+	log.Printf("finished syncing files, elapsed: %s", time.Since(started))
+	c.syncedAt = lastModTime
+	c.previousElements = pathToElement
+	return nil
 }
 
 type diff struct {
@@ -163,8 +176,8 @@ func getChecksumMap(checksums []*service.Checksum) map[uint32]map[string]int64 {
 	return m
 }
 
-func (s *Client) syncFile(path string) error {
-	absPath := filepath.Join(s.absDir, path)
+func (c *Client) syncFile(path string) error {
+	absPath := filepath.Join(c.absDir, path)
 
 	fileChecksum, err := fsutil.SHA256Checksum(absPath)
 	if err != nil {
@@ -175,7 +188,7 @@ func (s *Client) syncFile(path string) error {
 		return err
 	}
 
-	checksums, err := s.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path, Checksum: fileChecksum})
+	checksums, err := c.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path, Checksum: fileChecksum})
 	if err != nil {
 		return fmt.Errorf("error GetChecksum: %w", err)
 	}
@@ -190,7 +203,7 @@ func (s *Client) syncFile(path string) error {
 	header := metadata.New(map[string]string{"path": checksums.GetPath()})
 	ctx := metadata.NewOutgoingContext(context.Background(), header)
 
-	stream, err := s.client.UploadBlocks(ctx)
+	stream, err := c.client.UploadBlocks(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating upload stream: %w", err)
 	}
@@ -221,7 +234,7 @@ func (s *Client) syncFile(path string) error {
 		return nil
 	}
 
-	iterator, err := fsutil.NewFileIterator(filepath.Join(s.absDir, path), s.blockSize)
+	iterator, err := fsutil.NewFileIterator(filepath.Join(c.absDir, path), c.blockSize)
 	if err != nil {
 		return fmt.Errorf("error creating file iterator: %w", err)
 	}
@@ -254,16 +267,16 @@ func (s *Client) syncFile(path string) error {
 				buf.Write([]byte{chunk[0]})
 			} else {
 				// Looking for rolling checksums does not make sense.
-				iterator.IncOffset(s.blockSize)
+				iterator.IncOffset(c.blockSize)
 				buf.Write(chunk)
 			}
-			if int64(buf.Len()) >= s.blockSize {
+			if int64(buf.Len()) >= c.blockSize {
 				if err := flushBuf(); err != nil {
 					return err
 				}
 			}
 		} else {
-			iterator.IncOffset(s.blockSize)
+			iterator.IncOffset(c.blockSize)
 			if int64(buf.Len()) > 0 {
 				if err := flushBuf(); err != nil {
 					return err
@@ -291,11 +304,11 @@ func (s *Client) syncFile(path string) error {
 	return nil
 }
 
-func (s *Client) getStructureElements() ([]*service.Element, time.Time, error) {
+func (c *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 	var lastModTime time.Time
 	var elements []*service.Element
 
-	err := filepath.Walk(s.absDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(c.absDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil
@@ -305,30 +318,30 @@ func (s *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 		if info.ModTime().Sub(lastModTime) > 0 {
 			lastModTime = info.ModTime()
 		}
-		trimmedPath := strings.TrimPrefix(strings.TrimPrefix(path, s.absDir), string(os.PathSeparator))
+		trimmedPath := strings.TrimPrefix(strings.TrimPrefix(path, c.absDir), string(os.PathSeparator))
 		if trimmedPath == "" {
 			return nil
 		}
 		elements = append(elements, &service.Element{
 			Path:    trimmedPath,
 			IsDir:   info.IsDir(),
-			ModTime: info.ModTime().Unix(),
+			ModTime: info.ModTime().UnixNano(),
 		})
 		return nil
 	})
 	return elements, lastModTime, err
 }
 
-func (s *Client) syncFiles(lastSynced time.Time, elements []*service.Element) error {
+func (c *Client) syncFiles(lastSynced time.Time, elements []*service.Element) error {
 	for _, e := range elements {
 		if e.GetIsDir() {
 			continue
 		}
-		if e.ModTime-lastSynced.Unix() <= 0 {
+		if e.ModTime-lastSynced.UnixNano() <= 0 {
 			continue
 		}
 		log.Printf("syncing file: %s", e.GetPath())
-		err := s.syncFile(e.GetPath())
+		err := c.syncFile(e.GetPath())
 		if err != nil {
 			return err
 		}

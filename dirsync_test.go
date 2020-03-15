@@ -80,15 +80,14 @@ func TestSynchronization(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go client.Sync(ctx)
-
 	// Test creating new file.
 	fname := "test.txt"
 	f, err := os.Create(filepath.Join(dirFrom, fname))
 	require.NoError(t, err)
 	defer f.Close()
 	f.Sync()
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	if _, err := os.Stat(filepath.Join(dirTo, fname)); os.IsNotExist(err) {
 		require.Fail(t, "file not synced")
 	}
@@ -98,7 +97,8 @@ func TestSynchronization(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, n)
 	f.Sync()
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	data, err := ioutil.ReadFile(filepath.Join(dirTo, fname))
 	require.NoError(t, err)
 	require.Equal(t, []byte("test"), data)
@@ -108,7 +108,8 @@ func TestSynchronization(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 13, n)
 	f.Sync()
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	data, err = ioutil.ReadFile(filepath.Join(dirTo, fname))
 	require.NoError(t, err)
 	require.Equal(t, []byte("test more content"), data)
@@ -116,7 +117,8 @@ func TestSynchronization(t *testing.T) {
 	// Test removing file.
 	err = os.Remove(filepath.Join(dirFrom, fname))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	if _, err := os.Stat(filepath.Join(dirTo, fname)); !os.IsNotExist(err) {
 		require.Fail(t, "file exists")
 	}
@@ -124,7 +126,8 @@ func TestSynchronization(t *testing.T) {
 	// Test creating directory tree.
 	err = os.MkdirAll(filepath.Join(dirFrom, "deeply/nested/folder"), 0755)
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	if info, err := os.Stat(filepath.Join(dirTo, "deeply/nested/folder")); os.IsNotExist(err) || !info.IsDir() {
 		require.Fail(t, "directory not synced")
 	}
@@ -132,7 +135,8 @@ func TestSynchronization(t *testing.T) {
 	// Test removing part of directory tree.
 	err = os.RemoveAll(filepath.Join(dirFrom, "deeply/nested"))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	err = client.syncOnce()
+	require.NoError(t, err)
 	if _, err := os.Stat(filepath.Join(dirTo, "deeply")); os.IsNotExist(err) {
 		require.Fail(t, "directory must exist")
 	}
