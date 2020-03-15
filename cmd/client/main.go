@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/FZambia/dirsync"
 	"github.com/FZambia/dirsync/internal/service"
@@ -63,11 +64,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	gracefulStop := make(chan struct{})
+
 	go func() {
 		err = client.Sync(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
+		close(gracefulStop)
 	}()
 
 	sigs := make(chan os.Signal, 1)
@@ -78,6 +82,11 @@ func main() {
 		<-sigs
 		log.Println("shutting down")
 		cancel()
+		// Give client several seconds to finish gracefully.
+		select {
+		case <-gracefulStop:
+		case <-time.After(5 * time.Second):
+		}
 		close(done)
 	}()
 	<-done
