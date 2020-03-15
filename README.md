@@ -7,6 +7,7 @@ Package dirsync allows to sync specified directory from client to server over GR
 * Rsync-like approach to sync only modified blocks of files
 * Keeps in-memory checksum mapping to prevent full uploading of the same file twice
 * Full directory tree synchronization on client start
+* Synchronizes only difference of directory tree structure after initial tree sync
 * GRPC transport for client-server RPC
 * GRPC streaming to upload new file and file changes
 * Optional GZIP compression to reduce bandwidth used
@@ -22,7 +23,7 @@ First you need to start server and provide a directory to sync to. Then start a 
 
 As soon as client started it synchronizes its directory content with server. First directory structure is synchronized, missing directories get created, unnecessary directories and files removed inside server side folder. Then client starts synchronization of each individual file. It requests file information from server providing local file SHA-256 checksum. Server replies with SHA-256 file checksum and a list of rolling checksums (weak adler32 and strong SHA-256 for each file block). The size of each file block can be configured (default is 4kb). Client receives file information. If local file checksum matches server side version checksum then nothing will be sent to sync file state – we consider files are the same. If checksums differ then rsync-like algorithm to search for blocks that already exist in server file version will be used. Thus only references to existing blocks and changed parts of file will be sent over network. For newly created files we just stream contents to server without attempt to utilize rsync algorithm. Also new files have a chance to avoid full uploading due to in-memory cache of file checksum on server. Client process monitors directory for changes (using `fsnotify` library, recursively) and triggers synchronization process again if needed.
 
-At this moment we walk over full tree on every change (though deduping this to do actual sync process once and track file's modification time to not sync files if not needed). Ideally we should handle individual `fsnotify` events separately but looks like this is quite tricky due to lot of micromanagement and possible corner cases on different systems. So I decided to go with straighforward approach that works reliably.
+At this moment we walk over full tree on every change (though deduping this to do actual sync process once, track file's modification time to not sync files if not needed, also synchronize only difference in directory tree). Ideally we could handle individual `fsnotify` events separately to avoid full directory walk but looks like this is quite tricky due to lot of micromanagement and possible corner cases on different systems. So I decided to go with straighforward approach that works reliably.
 
 ### Quick start
 

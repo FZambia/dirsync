@@ -57,27 +57,57 @@ func (s *Client) Sync(ctx context.Context) error {
 	watcher.Add(s.absDir, true)
 
 	var syncedAt time.Time
+	var previousElements map[string]*service.Element
 	for {
+		started := time.Now()
 		elements, lastModTime, err := s.getStructureElements()
 		if err != nil {
 			return err
 		}
+		log.Printf("got directory tree structure, elapsed: %s", time.Since(started))
+
 		if lastModTime.Sub(syncedAt) > 0 {
-			log.Println("start syncing directory tree")
+			pathToElement := map[string]*service.Element{}
+			for _, e := range elements {
+				pathToElement[e.GetPath()] = e
+			}
 			started := time.Now()
-			_, err = s.client.SyncStructure(context.Background(), &service.StructureRequest{
-				Sep:      string(os.PathSeparator),
-				Elements: elements,
-			})
-			log.Printf("finished syncing directory tree, elapsed: %s", time.Since(started))
+			if syncedAt.IsZero() {
+				// Initial tree structure sync.
+				log.Println("start syncing full directory tree")
+				_, err = s.client.SyncStructure(context.Background(), &service.SyncRequest{
+					Sep:      string(os.PathSeparator),
+					Elements: elements,
+				})
+				if err != nil {
+					return err
+				}
+				log.Printf("finished syncing full directory tree, elapsed: %s", time.Since(started))
+			} else {
+				log.Println("start syncing directory tree diff")
+				diff := getStructureDiff(previousElements, pathToElement)
+				if len(diff.created) > 0 || len(diff.deleted) > 0 {
+					log.Printf("send structure difference, created: %d, deleted: %d", len(diff.created), len(diff.deleted))
+					_, err = s.client.DiffStructure(context.Background(), &service.DiffRequest{
+						Sep:     string(os.PathSeparator),
+						Created: diff.created,
+						Deleted: diff.deleted,
+					})
+					if err != nil {
+						return err
+					}
+				}
+				log.Printf("finished syncing directory tree diff, elapsed: %s", time.Since(started))
+			}
 			log.Println("start syncing files")
 			started = time.Now()
-			err = s.syncFiles(syncedAt)
+			err = s.syncFiles(syncedAt, elements)
 			if err != nil {
 				return err
 			}
 			log.Printf("finished syncing files, elapsed: %s", time.Since(started))
 			syncedAt = lastModTime
+			previousElements = pathToElement
 		} else {
 			log.Println("no changes detected, nothing to sync")
 		}
@@ -87,6 +117,37 @@ func (s *Client) Sync(ctx context.Context) error {
 		case <-triggerCh:
 			continue
 		}
+	}
+}
+
+type diff struct {
+	created []*service.Element
+	deleted []*service.Element
+}
+
+func getStructureDiff(previousElements map[string]*service.Element, pathToElement map[string]*service.Element) diff {
+	created := []*service.Element{}
+	deleted := []*service.Element{}
+
+	for _, e := range pathToElement {
+		if _, ok := previousElements[e.GetPath()]; ok {
+			continue
+		} else {
+			if e.GetIsDir() {
+				created = append(created, e)
+			}
+		}
+	}
+	for _, e := range previousElements {
+		if _, ok := pathToElement[e.GetPath()]; ok {
+			continue
+		} else {
+			deleted = append(deleted, e)
+		}
+	}
+	return diff{
+		created: created,
+		deleted: deleted,
 	}
 }
 
@@ -249,34 +310,28 @@ func (s *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 			return nil
 		}
 		elements = append(elements, &service.Element{
-			Path:  trimmedPath,
-			IsDir: info.IsDir(),
+			Path:    trimmedPath,
+			IsDir:   info.IsDir(),
+			ModTime: info.ModTime().Unix(),
 		})
 		return nil
 	})
 	return elements, lastModTime, err
 }
 
-func (s *Client) syncFiles(lastSynced time.Time) error {
-	err := filepath.Walk(s.absDir, func(path string, info os.FileInfo, err error) error {
+func (s *Client) syncFiles(lastSynced time.Time, elements []*service.Element) error {
+	for _, e := range elements {
+		if e.GetIsDir() {
+			continue
+		}
+		if e.ModTime-lastSynced.Unix() <= 0 {
+			continue
+		}
+		log.Printf("syncing file: %s", e.GetPath())
+		err := s.syncFile(e.GetPath())
 		if err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			return fmt.Errorf("syncFiles error while walk: %w", err)
+			return err
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if info.ModTime().Sub(lastSynced) <= 0 {
-			return nil
-		}
-		trimmedPath := strings.TrimPrefix(strings.TrimPrefix(path, s.absDir), string(os.PathSeparator))
-		if trimmedPath == "" {
-			return nil
-		}
-		log.Printf("syncing file: %s", trimmedPath)
-		return s.syncFile(trimmedPath)
-	})
-	return err
+	}
+	return nil
 }

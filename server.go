@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -74,11 +73,11 @@ func (s *Server) copyExisting(absPath, incomingChecksum string) bool {
 }
 
 // SyncStructure synchronizes directories and removes non-actual directories and files.
-func (s *Server) SyncStructure(ctx context.Context, req *service.StructureRequest) (*service.StructureResponse, error) {
+func (s *Server) SyncStructure(ctx context.Context, req *service.SyncRequest) (*service.SyncResponse, error) {
 	pathMap := make(map[string]struct{}, len(req.GetElements()))
 
 	for _, el := range req.GetElements() {
-		path := filepath.Join(s.absDir, el.GetPath())
+		path := filepath.Join(s.absDir, fsutil.CleanPath(el.GetPath()))
 		pathMap[path] = struct{}{}
 		if el.GetIsDir() {
 			log.Println("creating dir", path)
@@ -90,11 +89,16 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 	}
 
 	err := filepath.Walk(s.absDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
 		if s.absDir == path {
 			return nil
+		}
+		if err != nil {
+			if os.IsNotExist(err) {
+				// Already removed.
+				s.deleteChecksumMapping(path)
+				return nil
+			}
+			return err
 		}
 		if _, ok := pathMap[path]; !ok {
 			log.Println("removing path", path)
@@ -110,7 +114,31 @@ func (s *Server) SyncStructure(ctx context.Context, req *service.StructureReques
 		return nil, err
 	}
 
-	return &service.StructureResponse{}, nil
+	return &service.SyncResponse{}, nil
+}
+
+// DiffStructure synchronizes directory structure using only difference.
+func (s *Server) DiffStructure(ctx context.Context, req *service.DiffRequest) (*service.DiffResponse, error) {
+	for _, el := range req.GetCreated() {
+		path := filepath.Join(s.absDir, fsutil.CleanPath(el.GetPath()))
+		if el.GetIsDir() {
+			log.Println("creating dir", path)
+			err := os.MkdirAll(path, 0755)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, el := range req.GetDeleted() {
+		path := filepath.Join(s.absDir, fsutil.CleanPath(el.GetPath()))
+		log.Println("removing path", path)
+		err := os.RemoveAll(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		s.deleteChecksumMapping(path)
+	}
+	return &service.DiffResponse{}, nil
 }
 
 // GetChecksum returns checksum file info.
@@ -251,7 +279,7 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 				}
 				fileChecksum := hex.EncodeToString(fileHash.Sum(nil))
 				s.updateChecksumMapping(absPath, fileChecksum)
-				fmt.Printf("uploading %s, elapsed: %s\n", path, time.Since(startTime))
+				log.Printf("uploading file %s, elapsed: %s\n", path, time.Since(startTime))
 				return stream.SendAndClose(&service.UploadResponse{})
 			}
 			return err

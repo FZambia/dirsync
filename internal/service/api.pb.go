@@ -8,9 +8,11 @@
 		api.proto
 
 	It has these top-level messages:
-		StructureRequest
+		SyncRequest
 		Element
-		StructureResponse
+		SyncResponse
+		DiffRequest
+		DiffResponse
 		ChecksumRequest
 		ChecksumResponse
 		Checksum
@@ -39,24 +41,24 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-type StructureRequest struct {
+type SyncRequest struct {
 	Sep      string     `protobuf:"bytes,1,opt,name=sep,proto3" json:"sep,omitempty"`
 	Elements []*Element `protobuf:"bytes,2,rep,name=elements" json:"elements,omitempty"`
 }
 
-func (m *StructureRequest) Reset()                    { *m = StructureRequest{} }
-func (m *StructureRequest) String() string            { return proto.CompactTextString(m) }
-func (*StructureRequest) ProtoMessage()               {}
-func (*StructureRequest) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{0} }
+func (m *SyncRequest) Reset()                    { *m = SyncRequest{} }
+func (m *SyncRequest) String() string            { return proto.CompactTextString(m) }
+func (*SyncRequest) ProtoMessage()               {}
+func (*SyncRequest) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{0} }
 
-func (m *StructureRequest) GetSep() string {
+func (m *SyncRequest) GetSep() string {
 	if m != nil {
 		return m.Sep
 	}
 	return ""
 }
 
-func (m *StructureRequest) GetElements() []*Element {
+func (m *SyncRequest) GetElements() []*Element {
 	if m != nil {
 		return m.Elements
 	}
@@ -64,8 +66,9 @@ func (m *StructureRequest) GetElements() []*Element {
 }
 
 type Element struct {
-	Path  string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	IsDir bool   `protobuf:"varint,2,opt,name=is_dir,json=isDir,proto3" json:"is_dir,omitempty"`
+	Path    string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	IsDir   bool   `protobuf:"varint,2,opt,name=is_dir,json=isDir,proto3" json:"is_dir,omitempty"`
+	ModTime int64  `protobuf:"varint,3,opt,name=mod_time,json=modTime,proto3" json:"mod_time,omitempty"`
 }
 
 func (m *Element) Reset()                    { *m = Element{} }
@@ -87,13 +90,60 @@ func (m *Element) GetIsDir() bool {
 	return false
 }
 
-type StructureResponse struct {
+func (m *Element) GetModTime() int64 {
+	if m != nil {
+		return m.ModTime
+	}
+	return 0
 }
 
-func (m *StructureResponse) Reset()                    { *m = StructureResponse{} }
-func (m *StructureResponse) String() string            { return proto.CompactTextString(m) }
-func (*StructureResponse) ProtoMessage()               {}
-func (*StructureResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{2} }
+type SyncResponse struct {
+}
+
+func (m *SyncResponse) Reset()                    { *m = SyncResponse{} }
+func (m *SyncResponse) String() string            { return proto.CompactTextString(m) }
+func (*SyncResponse) ProtoMessage()               {}
+func (*SyncResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{2} }
+
+type DiffRequest struct {
+	Sep     string     `protobuf:"bytes,1,opt,name=sep,proto3" json:"sep,omitempty"`
+	Created []*Element `protobuf:"bytes,2,rep,name=created" json:"created,omitempty"`
+	Deleted []*Element `protobuf:"bytes,3,rep,name=deleted" json:"deleted,omitempty"`
+}
+
+func (m *DiffRequest) Reset()                    { *m = DiffRequest{} }
+func (m *DiffRequest) String() string            { return proto.CompactTextString(m) }
+func (*DiffRequest) ProtoMessage()               {}
+func (*DiffRequest) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{3} }
+
+func (m *DiffRequest) GetSep() string {
+	if m != nil {
+		return m.Sep
+	}
+	return ""
+}
+
+func (m *DiffRequest) GetCreated() []*Element {
+	if m != nil {
+		return m.Created
+	}
+	return nil
+}
+
+func (m *DiffRequest) GetDeleted() []*Element {
+	if m != nil {
+		return m.Deleted
+	}
+	return nil
+}
+
+type DiffResponse struct {
+}
+
+func (m *DiffResponse) Reset()                    { *m = DiffResponse{} }
+func (m *DiffResponse) String() string            { return proto.CompactTextString(m) }
+func (*DiffResponse) ProtoMessage()               {}
+func (*DiffResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{4} }
 
 type ChecksumRequest struct {
 	Path      string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
@@ -104,7 +154,7 @@ type ChecksumRequest struct {
 func (m *ChecksumRequest) Reset()                    { *m = ChecksumRequest{} }
 func (m *ChecksumRequest) String() string            { return proto.CompactTextString(m) }
 func (*ChecksumRequest) ProtoMessage()               {}
-func (*ChecksumRequest) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{3} }
+func (*ChecksumRequest) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{5} }
 
 func (m *ChecksumRequest) GetPath() string {
 	if m != nil {
@@ -136,7 +186,7 @@ type ChecksumResponse struct {
 func (m *ChecksumResponse) Reset()                    { *m = ChecksumResponse{} }
 func (m *ChecksumResponse) String() string            { return proto.CompactTextString(m) }
 func (*ChecksumResponse) ProtoMessage()               {}
-func (*ChecksumResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{4} }
+func (*ChecksumResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{6} }
 
 func (m *ChecksumResponse) GetPath() string {
 	if m != nil {
@@ -167,7 +217,7 @@ type Checksum struct {
 func (m *Checksum) Reset()                    { *m = Checksum{} }
 func (m *Checksum) String() string            { return proto.CompactTextString(m) }
 func (*Checksum) ProtoMessage()               {}
-func (*Checksum) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{5} }
+func (*Checksum) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{7} }
 
 func (m *Checksum) GetWeak() uint32 {
 	if m != nil {
@@ -189,7 +239,7 @@ type UploadResponse struct {
 func (m *UploadResponse) Reset()                    { *m = UploadResponse{} }
 func (m *UploadResponse) String() string            { return proto.CompactTextString(m) }
 func (*UploadResponse) ProtoMessage()               {}
-func (*UploadResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{6} }
+func (*UploadResponse) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{8} }
 
 type Block struct {
 	Reference bool   `protobuf:"varint,1,opt,name=reference,proto3" json:"reference,omitempty"`
@@ -200,7 +250,7 @@ type Block struct {
 func (m *Block) Reset()                    { *m = Block{} }
 func (m *Block) String() string            { return proto.CompactTextString(m) }
 func (*Block) ProtoMessage()               {}
-func (*Block) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{7} }
+func (*Block) Descriptor() ([]byte, []int) { return fileDescriptorApi, []int{9} }
 
 func (m *Block) GetReference() bool {
 	if m != nil {
@@ -224,9 +274,11 @@ func (m *Block) GetPayload() []byte {
 }
 
 func init() {
-	proto.RegisterType((*StructureRequest)(nil), "service.StructureRequest")
+	proto.RegisterType((*SyncRequest)(nil), "service.SyncRequest")
 	proto.RegisterType((*Element)(nil), "service.Element")
-	proto.RegisterType((*StructureResponse)(nil), "service.StructureResponse")
+	proto.RegisterType((*SyncResponse)(nil), "service.SyncResponse")
+	proto.RegisterType((*DiffRequest)(nil), "service.DiffRequest")
+	proto.RegisterType((*DiffResponse)(nil), "service.DiffResponse")
 	proto.RegisterType((*ChecksumRequest)(nil), "service.ChecksumRequest")
 	proto.RegisterType((*ChecksumResponse)(nil), "service.ChecksumResponse")
 	proto.RegisterType((*Checksum)(nil), "service.Checksum")
@@ -245,7 +297,8 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for DirSync service
 
 type DirSyncClient interface {
-	SyncStructure(ctx context.Context, in *StructureRequest, opts ...grpc.CallOption) (*StructureResponse, error)
+	SyncStructure(ctx context.Context, in *SyncRequest, opts ...grpc.CallOption) (*SyncResponse, error)
+	DiffStructure(ctx context.Context, in *DiffRequest, opts ...grpc.CallOption) (*DiffResponse, error)
 	GetChecksum(ctx context.Context, in *ChecksumRequest, opts ...grpc.CallOption) (*ChecksumResponse, error)
 	UploadBlocks(ctx context.Context, opts ...grpc.CallOption) (DirSync_UploadBlocksClient, error)
 }
@@ -258,9 +311,18 @@ func NewDirSyncClient(cc *grpc.ClientConn) DirSyncClient {
 	return &dirSyncClient{cc}
 }
 
-func (c *dirSyncClient) SyncStructure(ctx context.Context, in *StructureRequest, opts ...grpc.CallOption) (*StructureResponse, error) {
-	out := new(StructureResponse)
+func (c *dirSyncClient) SyncStructure(ctx context.Context, in *SyncRequest, opts ...grpc.CallOption) (*SyncResponse, error) {
+	out := new(SyncResponse)
 	err := grpc.Invoke(ctx, "/service.DirSync/SyncStructure", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dirSyncClient) DiffStructure(ctx context.Context, in *DiffRequest, opts ...grpc.CallOption) (*DiffResponse, error) {
+	out := new(DiffResponse)
+	err := grpc.Invoke(ctx, "/service.DirSync/DiffStructure", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +375,8 @@ func (x *dirSyncUploadBlocksClient) CloseAndRecv() (*UploadResponse, error) {
 // Server API for DirSync service
 
 type DirSyncServer interface {
-	SyncStructure(context.Context, *StructureRequest) (*StructureResponse, error)
+	SyncStructure(context.Context, *SyncRequest) (*SyncResponse, error)
+	DiffStructure(context.Context, *DiffRequest) (*DiffResponse, error)
 	GetChecksum(context.Context, *ChecksumRequest) (*ChecksumResponse, error)
 	UploadBlocks(DirSync_UploadBlocksServer) error
 }
@@ -323,7 +386,7 @@ func RegisterDirSyncServer(s *grpc.Server, srv DirSyncServer) {
 }
 
 func _DirSync_SyncStructure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StructureRequest)
+	in := new(SyncRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -335,7 +398,25 @@ func _DirSync_SyncStructure_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/service.DirSync/SyncStructure",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DirSyncServer).SyncStructure(ctx, req.(*StructureRequest))
+		return srv.(DirSyncServer).SyncStructure(ctx, req.(*SyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DirSync_DiffStructure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DirSyncServer).DiffStructure(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/service.DirSync/DiffStructure",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DirSyncServer).DiffStructure(ctx, req.(*DiffRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -393,6 +474,10 @@ var _DirSync_serviceDesc = grpc.ServiceDesc{
 			Handler:    _DirSync_SyncStructure_Handler,
 		},
 		{
+			MethodName: "DiffStructure",
+			Handler:    _DirSync_DiffStructure_Handler,
+		},
+		{
 			MethodName: "GetChecksum",
 			Handler:    _DirSync_GetChecksum_Handler,
 		},
@@ -407,7 +492,7 @@ var _DirSync_serviceDesc = grpc.ServiceDesc{
 	Metadata: "api.proto",
 }
 
-func (m *StructureRequest) Marshal() (dAtA []byte, err error) {
+func (m *SyncRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -417,7 +502,7 @@ func (m *StructureRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *StructureRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *SyncRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -474,10 +559,15 @@ func (m *Element) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i++
 	}
+	if m.ModTime != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintApi(dAtA, i, uint64(m.ModTime))
+	}
 	return i, nil
 }
 
-func (m *StructureResponse) Marshal() (dAtA []byte, err error) {
+func (m *SyncResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -487,7 +577,73 @@ func (m *StructureResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *StructureResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *SyncResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *DiffRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DiffRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Sep) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintApi(dAtA, i, uint64(len(m.Sep)))
+		i += copy(dAtA[i:], m.Sep)
+	}
+	if len(m.Created) > 0 {
+		for _, msg := range m.Created {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintApi(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.Deleted) > 0 {
+		for _, msg := range m.Deleted {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintApi(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *DiffResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DiffResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -667,7 +823,7 @@ func encodeVarintApi(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *StructureRequest) Size() (n int) {
+func (m *SyncRequest) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Sep)
@@ -693,10 +849,41 @@ func (m *Element) Size() (n int) {
 	if m.IsDir {
 		n += 2
 	}
+	if m.ModTime != 0 {
+		n += 1 + sovApi(uint64(m.ModTime))
+	}
 	return n
 }
 
-func (m *StructureResponse) Size() (n int) {
+func (m *SyncResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *DiffRequest) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Sep)
+	if l > 0 {
+		n += 1 + l + sovApi(uint64(l))
+	}
+	if len(m.Created) > 0 {
+		for _, e := range m.Created {
+			l = e.Size()
+			n += 1 + l + sovApi(uint64(l))
+		}
+	}
+	if len(m.Deleted) > 0 {
+		for _, e := range m.Deleted {
+			l = e.Size()
+			n += 1 + l + sovApi(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *DiffResponse) Size() (n int) {
 	var l int
 	_ = l
 	return n
@@ -787,7 +974,7 @@ func sovApi(x uint64) (n int) {
 func sozApi(x uint64) (n int) {
 	return sovApi(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *StructureRequest) Unmarshal(dAtA []byte) error {
+func (m *SyncRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -810,10 +997,10 @@ func (m *StructureRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: StructureRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: SyncRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: StructureRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: SyncRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -975,6 +1162,25 @@ func (m *Element) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.IsDir = bool(v != 0)
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ModTime", wireType)
+			}
+			m.ModTime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowApi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ModTime |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipApi(dAtA[iNdEx:])
@@ -996,7 +1202,7 @@ func (m *Element) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *StructureResponse) Unmarshal(dAtA []byte) error {
+func (m *SyncResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1019,10 +1225,201 @@ func (m *StructureResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: StructureResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: SyncResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: StructureResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: SyncResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipApi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthApi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DiffRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowApi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DiffRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DiffRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sep", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowApi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthApi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Sep = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowApi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthApi
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Created = append(m.Created, &Element{})
+			if err := m.Created[len(m.Created)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deleted", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowApi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthApi
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Deleted = append(m.Deleted, &Element{})
+			if err := m.Deleted[len(m.Deleted)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipApi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthApi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DiffResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowApi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DiffResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DiffResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -1688,32 +2085,36 @@ var (
 func init() { proto.RegisterFile("api.proto", fileDescriptorApi) }
 
 var fileDescriptorApi = []byte{
-	// 422 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x93, 0xcf, 0x8f, 0x93, 0x40,
-	0x14, 0xc7, 0x3b, 0x8b, 0x5b, 0xe0, 0xed, 0xb2, 0xb2, 0x63, 0x54, 0x96, 0x28, 0x21, 0x9c, 0x38,
-	0x98, 0x9a, 0xac, 0xc6, 0x8b, 0xb7, 0xb5, 0x46, 0xcf, 0xd3, 0x18, 0x8f, 0x2b, 0x65, 0x9f, 0xee,
-	0xa4, 0x2d, 0xe0, 0xcc, 0xa0, 0x69, 0xff, 0x0a, 0xff, 0x2c, 0x8f, 0x9e, 0x3c, 0x9b, 0xfa, 0x8f,
-	0x18, 0x86, 0x61, 0x6a, 0x6a, 0x2f, 0x9e, 0x78, 0xbf, 0xf2, 0xf9, 0xbe, 0xf7, 0x05, 0xc0, 0x2f,
-	0x1a, 0x3e, 0x69, 0x44, 0xad, 0x6a, 0xea, 0x4a, 0x14, 0x5f, 0x78, 0x89, 0x19, 0x83, 0x70, 0xa6,
-	0x44, 0x5b, 0xaa, 0x56, 0x20, 0xc3, 0xcf, 0x2d, 0x4a, 0x45, 0x43, 0x70, 0x24, 0x36, 0x11, 0x49,
-	0x49, 0xee, 0xb3, 0x2e, 0xa4, 0x4f, 0xc0, 0xc3, 0x25, 0xae, 0xb0, 0x52, 0x32, 0x3a, 0x4a, 0x9d,
-	0xfc, 0xe4, 0x32, 0x9c, 0x18, 0xc2, 0xe4, 0x75, 0xdf, 0x60, 0x76, 0x22, 0x7b, 0x0e, 0xae, 0x29,
-	0x52, 0x0a, 0x77, 0x9a, 0x42, 0xdd, 0x1a, 0x96, 0x8e, 0xe9, 0x7d, 0x18, 0x73, 0x79, 0x7d, 0xc3,
-	0x45, 0x74, 0x94, 0x92, 0xdc, 0x63, 0xc7, 0x5c, 0x4e, 0xb9, 0xc8, 0xee, 0xc1, 0xf9, 0x5f, 0x9b,
-	0xc8, 0xa6, 0xae, 0x24, 0x66, 0x1f, 0xe0, 0xee, 0xab, 0x5b, 0x2c, 0x17, 0xb2, 0x5d, 0x0d, 0xdb,
-	0x1d, 0x42, 0xc6, 0xe0, 0x95, 0x66, 0x4c, 0x43, 0x7d, 0x66, 0x73, 0xfa, 0x18, 0x60, 0xbe, 0xac,
-	0xcb, 0xc5, 0xb5, 0xe4, 0x1b, 0x8c, 0x9c, 0x94, 0xe4, 0x01, 0xf3, 0x75, 0x65, 0xc6, 0x37, 0x98,
-	0x49, 0x08, 0x77, 0x0a, 0xbd, 0xea, 0x7f, 0x4b, 0x3c, 0x05, 0x7f, 0x88, 0x65, 0xe4, 0x68, 0x7f,
-	0xce, 0xad, 0x3f, 0x96, 0xbe, 0x9b, 0xc9, 0x5e, 0x80, 0x37, 0x94, 0x3b, 0xb1, 0xaf, 0x58, 0x2c,
-	0xb4, 0x58, 0xc0, 0x74, 0x4c, 0x1f, 0xc0, 0x58, 0x2a, 0x51, 0x57, 0x9f, 0x8c, 0x94, 0xc9, 0xb2,
-	0x10, 0xce, 0xde, 0x35, 0xcb, 0xba, 0xb8, 0xb1, 0x06, 0xbd, 0x87, 0xe3, 0xab, 0xee, 0x16, 0xfa,
-	0x08, 0x7c, 0x81, 0x1f, 0x51, 0x60, 0x55, 0xa2, 0x66, 0x79, 0x6c, 0x57, 0xe8, 0x80, 0x55, 0xbb,
-	0x9a, 0x63, 0xef, 0x79, 0xc0, 0x4c, 0x46, 0x23, 0x70, 0x9b, 0x62, 0xdd, 0x11, 0xb5, 0x33, 0xa7,
-	0x6c, 0x48, 0x2f, 0x7f, 0x12, 0x70, 0xa7, 0x5c, 0xcc, 0xd6, 0x55, 0x49, 0xdf, 0x42, 0xd0, 0x3d,
-	0xed, 0xeb, 0xa1, 0x17, 0xf6, 0xba, 0xfd, 0x8f, 0x27, 0x8e, 0x0f, 0xb5, 0xcc, 0xb2, 0x23, 0x3a,
-	0x85, 0x93, 0x37, 0xa8, 0xec, 0xed, 0xd1, 0xbf, 0x2e, 0x19, 0xcc, 0xc5, 0x81, 0x8e, 0xa5, 0xbc,
-	0x84, 0xd3, 0xde, 0x06, 0x7d, 0xba, 0xa4, 0x67, 0x76, 0x58, 0x17, 0xe2, 0x87, 0x36, 0xdf, 0x73,
-	0x6b, 0x94, 0x93, 0xab, 0xf0, 0xfb, 0x36, 0x21, 0x3f, 0xb6, 0x09, 0xf9, 0xb5, 0x4d, 0xc8, 0xb7,
-	0xdf, 0xc9, 0x68, 0x3e, 0xd6, 0xff, 0xc4, 0xb3, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xeb, 0x1a,
-	0x59, 0xf0, 0x20, 0x03, 0x00, 0x00,
+	// 496 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0x4d, 0x8e, 0xd3, 0x4c,
+	0x10, 0x8d, 0x93, 0x6f, 0x62, 0xbb, 0xf2, 0xf3, 0x85, 0x16, 0x03, 0x9e, 0x08, 0xa2, 0xc8, 0xab,
+	0x08, 0xa1, 0x20, 0x0d, 0x12, 0x1b, 0x24, 0x16, 0x43, 0x10, 0x2b, 0x84, 0xd4, 0x01, 0xb1, 0x0c,
+	0x8e, 0x5d, 0x61, 0x5a, 0x89, 0x7f, 0xe8, 0x6e, 0x33, 0x9a, 0x39, 0x03, 0x0b, 0x8e, 0xc5, 0x92,
+	0x23, 0xa0, 0x70, 0x11, 0xd4, 0xed, 0x76, 0x27, 0x0c, 0xc9, 0x82, 0x55, 0xaa, 0xaa, 0x5f, 0x55,
+	0xbd, 0xf7, 0x52, 0x06, 0x3f, 0x2a, 0xd8, 0xb4, 0xe0, 0xb9, 0xcc, 0x89, 0x2b, 0x90, 0x7f, 0x61,
+	0x31, 0x86, 0x6f, 0xa0, 0x33, 0xbf, 0xce, 0x62, 0x8a, 0x9f, 0x4b, 0x14, 0x92, 0x0c, 0xa0, 0x25,
+	0xb0, 0x08, 0x9c, 0xb1, 0x33, 0xf1, 0xa9, 0x0a, 0xc9, 0x63, 0xf0, 0x70, 0x83, 0x29, 0x66, 0x52,
+	0x04, 0xcd, 0x71, 0x6b, 0xd2, 0x39, 0x1f, 0x4c, 0x4d, 0xf3, 0xf4, 0x55, 0xf5, 0x40, 0x2d, 0x22,
+	0x7c, 0x0b, 0xae, 0x29, 0x12, 0x02, 0xff, 0x15, 0x91, 0xbc, 0x34, 0xb3, 0x74, 0x4c, 0x4e, 0xa1,
+	0xcd, 0xc4, 0x22, 0x61, 0x3c, 0x68, 0x8e, 0x9d, 0x89, 0x47, 0x4f, 0x98, 0x98, 0x31, 0x4e, 0xce,
+	0xc0, 0x4b, 0xf3, 0x64, 0x21, 0x59, 0x8a, 0x41, 0x6b, 0xec, 0x4c, 0x5a, 0xd4, 0x4d, 0xf3, 0xe4,
+	0x1d, 0x4b, 0x31, 0xec, 0x43, 0xb7, 0xe2, 0x27, 0x8a, 0x3c, 0x13, 0x18, 0x5e, 0x41, 0x67, 0xc6,
+	0x56, 0xab, 0xe3, 0x7c, 0x1f, 0x81, 0x1b, 0x73, 0x8c, 0x24, 0x26, 0x47, 0xe9, 0xd6, 0x00, 0x85,
+	0x4d, 0x70, 0x83, 0x0a, 0xdb, 0x3a, 0x86, 0x35, 0x00, 0x45, 0xa4, 0x5a, 0x6c, 0x88, 0x7c, 0x84,
+	0xff, 0x5f, 0x5e, 0x62, 0xbc, 0x16, 0x65, 0x5a, 0x93, 0x39, 0xa4, 0x78, 0x08, 0x5e, 0x6c, 0x60,
+	0x5a, 0xb3, 0x4f, 0x6d, 0x4e, 0x1e, 0x02, 0x2c, 0x37, 0x79, 0xbc, 0x5e, 0x08, 0x76, 0x53, 0x09,
+	0xef, 0x51, 0x5f, 0x57, 0xe6, 0xec, 0x06, 0x43, 0x01, 0x83, 0xdd, 0x86, 0x6a, 0xeb, 0x3f, 0xaf,
+	0x78, 0x02, 0x7e, 0x1d, 0x0b, 0xa3, 0xf1, 0x8e, 0xd5, 0x68, 0xa7, 0xef, 0x30, 0xe1, 0x33, 0xf0,
+	0xea, 0xb2, 0x5a, 0x76, 0x85, 0xd1, 0x5a, 0x2f, 0xeb, 0x51, 0x1d, 0x93, 0x7b, 0xd0, 0x16, 0x92,
+	0xe7, 0xd9, 0x27, 0xb3, 0xca, 0x64, 0xe1, 0x00, 0xfa, 0xef, 0x8b, 0x4d, 0x1e, 0x25, 0xd6, 0xa0,
+	0x0f, 0x70, 0x72, 0xa1, 0xb4, 0x90, 0x07, 0xe0, 0x73, 0x5c, 0x21, 0xc7, 0x2c, 0x46, 0x3d, 0xcb,
+	0xa3, 0xbb, 0x82, 0x1a, 0x98, 0x95, 0xe9, 0x12, 0xab, 0x93, 0xe8, 0x51, 0x93, 0x91, 0x00, 0xdc,
+	0x22, 0xba, 0x56, 0x13, 0xb5, 0x33, 0x5d, 0x5a, 0xa7, 0xe7, 0x5f, 0x9b, 0xe0, 0xce, 0x18, 0x57,
+	0x67, 0x41, 0x5e, 0x40, 0x4f, 0xfd, 0xce, 0x25, 0x2f, 0x63, 0x59, 0x72, 0x24, 0x77, 0xad, 0xba,
+	0xbd, 0xb3, 0x1e, 0x9e, 0xde, 0xaa, 0x1a, 0x8a, 0x0d, 0xd5, 0xaf, 0xfe, 0xd5, 0x43, 0xfd, 0x7b,
+	0x67, 0xb6, 0xd7, 0xff, 0xc7, 0x0d, 0x34, 0xc8, 0x0c, 0x3a, 0xaf, 0x51, 0x5a, 0xc7, 0x82, 0xbf,
+	0xbd, 0x35, 0x13, 0xce, 0x0e, 0xbc, 0xd8, 0x29, 0xcf, 0xa1, 0x5b, 0x99, 0xa7, 0x0d, 0x13, 0xa4,
+	0x6f, 0xc1, 0xba, 0x30, 0xbc, 0x6f, 0xf3, 0x5b, 0x1e, 0x37, 0x26, 0xce, 0xc5, 0xe0, 0xfb, 0x76,
+	0xe4, 0xfc, 0xd8, 0x8e, 0x9c, 0x9f, 0xdb, 0x91, 0xf3, 0xed, 0xd7, 0xa8, 0xb1, 0x6c, 0xeb, 0x6f,
+	0xfc, 0xe9, 0xef, 0x00, 0x00, 0x00, 0xff, 0xff, 0x90, 0xae, 0x8e, 0xde, 0xf0, 0x03, 0x00, 0x00,
 }

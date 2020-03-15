@@ -4,12 +4,13 @@ syntax = "proto3";
 package service;
 
 service DirSync {
-    rpc SyncStructure(StructureRequest) returns (StructureResponse) {}
+    rpc SyncStructure(SyncRequest) returns (SyncResponse) {}
+    rpc DiffStructure(DiffRequest) returns (DiffResponse) {}
     rpc GetChecksum(ChecksumRequest) returns (ChecksumResponse) {}
     rpc UploadBlocks(stream Block) returns (UploadResponse) {}
 }
 
-message StructureRequest {
+message SyncRequest {
     string sep = 1;
     repeated Element elements = 2;
 }
@@ -17,9 +18,19 @@ message StructureRequest {
 message Element {
     string path = 1;
     bool is_dir = 2;
+    int64 mod_time = 3;
 }
 
-message StructureResponse {
+message SyncResponse {
+}
+
+message DiffRequest {
+    string sep = 1;
+    repeated Element created = 2;
+    repeated Element deleted = 3;
+}
+
+message DiffResponse {
 }
 
 message ChecksumRequest {
