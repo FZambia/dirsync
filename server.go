@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -222,49 +223,51 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 	}, nil
 }
 
-func extractPath(ctx context.Context) (string, error) {
+type uploadMeta struct {
+	Path      string
+	BlockSize uint32
+}
+
+func extractUploadMeta(ctx context.Context) (uploadMeta, error) {
+	meta := uploadMeta{}
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", errors.New("metadata required")
+		return meta, errors.New("metadata required")
 	}
 	paths := md.Get("path")
 	if len(paths) != 1 {
-		return "", errors.New("malformed path")
+		return meta, errors.New("malformed path")
 	}
 	path := paths[0]
 	if path == "" {
-		return "", errors.New("empty path")
-	}
-	return path, nil
-}
-
-func extractBlockSize(ctx context.Context) (int64, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return 0, errors.New("metadata required")
+		return meta, errors.New("empty path")
 	}
 	blockSizes := md.Get("block_size")
 	if len(blockSizes) != 1 {
-		return 0, errors.New("malformed block_size")
+		return meta, errors.New("malformed block_size")
 	}
-	blockSize := blockSizes[0]
-	if blockSize == "" {
-		return 0, errors.New("empty block_size")
+	blockSizeStr := blockSizes[0]
+	if blockSizeStr == "" {
+		return meta, errors.New("empty block_size")
 	}
-	return strconv.ParseInt(blockSize, 10, 64)
+	blockSize, err := strconv.ParseUint(blockSizeStr, 10, 64)
+	if err != nil {
+		return meta, fmt.Errorf("block_size paese error: %w", err)
+	}
+	meta.Path = path
+	meta.BlockSize = uint32(blockSize)
+	return meta, nil
 }
 
 // UploadBlocks accepts file block stream from client to create modified
 // file using changes and references to original blocks.
 func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
-	path, err := extractPath(stream.Context())
+	meta, err := extractUploadMeta(stream.Context())
 	if err != nil {
 		return err
 	}
-	blockSize, err := extractBlockSize(stream.Context())
-	if err != nil {
-		return err
-	}
+	path := meta.Path
+	blockSize := meta.BlockSize
 
 	tmpfile, err := ioutil.TempFile("", "dirsync")
 	if err != nil {
@@ -304,7 +307,7 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			return err
 		}
 		if block.GetReference() {
-			_, err := file.Seek(int64(block.GetNumber())*blockSize, 0)
+			_, err := file.Seek(int64(block.GetNumber())*int64(blockSize), 0)
 			if err != nil {
 				return err
 			}
