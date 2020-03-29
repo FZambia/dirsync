@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/FZambia/dirsync/internal/fsutil"
@@ -65,7 +66,10 @@ func (c *Client) Sync(ctx context.Context) error {
 	watcher.Add(c.absDir, true)
 
 	for {
-		c.syncOnce()
+		err := c.syncOnce()
+		if err != nil {
+			return err
+		}
 
 		select {
 		case <-ctx.Done():
@@ -319,6 +323,9 @@ func (c *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 			}
 			return fmt.Errorf("getStructureElements error while walk: %w", err)
 		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return nil
+		}
 		if info.ModTime().Sub(lastModTime) > 0 {
 			lastModTime = info.ModTime()
 		}
@@ -336,7 +343,13 @@ func (c *Client) getStructureElements() ([]*service.Element, time.Time, error) {
 	return elements, lastModTime, err
 }
 
+const fileSyncConcurrency = 16
+
 func (c *Client) syncFiles(lastSynced time.Time, elements []*service.Element) error {
+	var wg sync.WaitGroup
+	var errMu sync.Mutex
+	var syncErr error
+	sem := make(chan struct{}, fileSyncConcurrency)
 	for _, e := range elements {
 		if e.GetIsDir() {
 			continue
@@ -344,11 +357,23 @@ func (c *Client) syncFiles(lastSynced time.Time, elements []*service.Element) er
 		if e.ModTime-lastSynced.UnixNano() <= 0 {
 			continue
 		}
-		log.Printf("syncing file: %s", e.GetPath())
-		err := c.syncFile(e.GetPath())
-		if err != nil {
-			return err
-		}
+		wg.Add(1)
+		go func(path string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			log.Printf("syncing file: %s", path)
+			err := c.syncFile(path)
+			if err != nil {
+				// TODO: early return on error.
+				errMu.Lock()
+				if syncErr == nil {
+					syncErr = err
+				}
+				errMu.Unlock()
+			}
+		}(e.GetPath())
 	}
-	return nil
+	wg.Wait()
+	return syncErr
 }
