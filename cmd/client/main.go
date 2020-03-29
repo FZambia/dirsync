@@ -21,7 +21,7 @@ import (
 type Options struct {
 	Addr      string `short:"a" long:"addr" default:":10000" description:"address of server to connect"`
 	Dir       string `short:"d" long:"dir" default:"dirsync_from" description:"a directory to sync from"`
-	BlockSize int64  `short:"b" long:"block_size" default:"4096" description:"block size in bytes"`
+	BlockSize uint32 `short:"b" long:"block_size" default:"4096" description:"block size in bytes"`
 	UseGzip   bool   `short:"c" long:"gzip" description:"use GZIP compression for calls to server"`
 }
 

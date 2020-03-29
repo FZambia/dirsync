@@ -3,6 +3,7 @@ package fsutil
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,6 +34,9 @@ type FileChunker struct {
 
 // NewFileChunker ...
 func NewFileChunker(path string, size int64) (*FileChunker, error) {
+	if size <= 0 {
+		return nil, errors.New("malformed block size")
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -72,6 +76,9 @@ type FileIterator struct {
 
 // NewFileIterator ...
 func NewFileIterator(path string, size int64) (*FileIterator, error) {
+	if size <= 0 {
+		return nil, errors.New("malformed block size")
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

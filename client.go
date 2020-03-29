@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,13 +24,13 @@ import (
 type Client struct {
 	client           service.DirSyncClient
 	absDir           string
-	blockSize        int64
+	blockSize        uint32
 	syncedAt         time.Time
 	previousElements map[string]*service.Element
 }
 
 // NewClient creates new Client.
-func NewClient(client service.DirSyncClient, dir string, blockSize int64) (*Client, error) {
+func NewClient(client service.DirSyncClient, dir string, blockSize uint32) (*Client, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -188,7 +189,7 @@ func (c *Client) syncFile(path string) error {
 		return err
 	}
 
-	checksums, err := c.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path, Checksum: fileChecksum})
+	checksums, err := c.client.GetChecksum(context.Background(), &service.ChecksumRequest{Path: path, Checksum: fileChecksum, BlockSize: c.blockSize})
 	if err != nil {
 		return fmt.Errorf("error GetChecksum: %w", err)
 	}
@@ -200,7 +201,10 @@ func (c *Client) syncFile(path string) error {
 	}
 
 	// Use metadata to pass file name to sync over client-side stream.
-	header := metadata.New(map[string]string{"path": checksums.GetPath()})
+	header := metadata.New(map[string]string{
+		"path":       checksums.GetPath(),
+		"block_size": strconv.FormatUint(uint64(c.blockSize), 10),
+	})
 	ctx := metadata.NewOutgoingContext(context.Background(), header)
 
 	stream, err := c.client.UploadBlocks(ctx)
@@ -234,7 +238,7 @@ func (c *Client) syncFile(path string) error {
 		return nil
 	}
 
-	iterator, err := fsutil.NewFileIterator(filepath.Join(c.absDir, path), c.blockSize)
+	iterator, err := fsutil.NewFileIterator(filepath.Join(c.absDir, path), int64(c.blockSize))
 	if err != nil {
 		return fmt.Errorf("error creating file iterator: %w", err)
 	}
@@ -267,16 +271,16 @@ func (c *Client) syncFile(path string) error {
 				buf.Write([]byte{chunk[0]})
 			} else {
 				// Looking for rolling checksums does not make sense.
-				iterator.IncOffset(c.blockSize)
+				iterator.IncOffset(int64(c.blockSize))
 				buf.Write(chunk)
 			}
-			if int64(buf.Len()) >= c.blockSize {
+			if int64(buf.Len()) >= int64(c.blockSize) {
 				if err := flushBuf(); err != nil {
 					return err
 				}
 			}
 		} else {
-			iterator.IncOffset(c.blockSize)
+			iterator.IncOffset(int64(c.blockSize))
 			if int64(buf.Len()) > 0 {
 				if err := flushBuf(); err != nil {
 					return err

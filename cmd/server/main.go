@@ -20,7 +20,6 @@ import (
 type Options struct {
 	Addr      string `short:"a" long:"addr" default:":10000" description:"Address of server to listen on"`
 	Dir       string `short:"d" long:"dir" default:"dirsync_to" description:"A directory to sync to"`
-	BlockSize int64  `short:"b" long:"block_size" default:"4096" description:"Block size in bytes"`
 }
 
 func main() {
@@ -35,7 +34,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	syncServer, err := dirsync.NewServer(opts.Dir, opts.BlockSize)
+	syncServer, err := dirsync.NewServer(opts.Dir)
 	if err != nil {
 		log.Fatalf("failed to create server: %v", err)
 	}

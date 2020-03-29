@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -24,12 +25,11 @@ import (
 type Server struct {
 	mu             sync.RWMutex
 	absDir         string
-	blockSize      int64
 	pathToChecksum map[string]string
 }
 
 // NewServer creates new Server.
-func NewServer(dir string, blockSize int64) (*Server, error) {
+func NewServer(dir string) (*Server, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,6 @@ func NewServer(dir string, blockSize int64) (*Server, error) {
 
 	return &Server{
 		absDir:         absDir,
-		blockSize:      blockSize,
 		pathToChecksum: make(map[string]string),
 	}, nil
 }
@@ -183,7 +182,7 @@ func (s *Server) GetChecksum(ctx context.Context, req *service.ChecksumRequest) 
 		}, nil
 	}
 
-	chunker, err := fsutil.NewFileChunker(absPath, s.blockSize)
+	chunker, err := fsutil.NewFileChunker(absPath, int64(req.GetBlockSize()))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &service.ChecksumResponse{
@@ -239,10 +238,30 @@ func extractPath(ctx context.Context) (string, error) {
 	return path, nil
 }
 
+func extractBlockSize(ctx context.Context) (int64, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return 0, errors.New("metadata required")
+	}
+	blockSizes := md.Get("block_size")
+	if len(blockSizes) != 1 {
+		return 0, errors.New("malformed block_size")
+	}
+	blockSize := blockSizes[0]
+	if blockSize == "" {
+		return 0, errors.New("empty block_size")
+	}
+	return strconv.ParseInt(blockSize, 10, 64)
+}
+
 // UploadBlocks accepts file block stream from client to create modified
 // file using changes and references to original blocks.
 func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 	path, err := extractPath(stream.Context())
+	if err != nil {
+		return err
+	}
+	blockSize, err := extractBlockSize(stream.Context())
 	if err != nil {
 		return err
 	}
@@ -285,11 +304,11 @@ func (s *Server) UploadBlocks(stream service.DirSync_UploadBlocksServer) error {
 			return err
 		}
 		if block.GetReference() {
-			_, err := file.Seek(int64(block.GetNumber())*s.blockSize, 0)
+			_, err := file.Seek(int64(block.GetNumber())*blockSize, 0)
 			if err != nil {
 				return err
 			}
-			buf := make([]byte, s.blockSize)
+			buf := make([]byte, blockSize)
 			n, _ := io.ReadFull(file, buf)
 			_, err = tmpfile.Write(buf[:n])
 			if err != nil {

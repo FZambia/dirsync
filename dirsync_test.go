@@ -21,11 +21,11 @@ const bufSize = 1024 * 1024
 
 var lis *bufconn.Listener
 
-func runTestServer(t *testing.T, dir string, blockSize int64) (*grpc.Server, *bufconn.Listener) {
+func runTestServer(t *testing.T, dir string) (*grpc.Server, *bufconn.Listener) {
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer()
 
-	server, err := NewServer(dir, blockSize)
+	server, err := NewServer(dir)
 	require.NoError(t, err)
 
 	service.RegisterDirSyncServer(s, server)
@@ -61,7 +61,7 @@ func TestSynchronization(t *testing.T) {
 	}
 	defer os.RemoveAll(dirFrom)
 
-	server, listener := runTestServer(t, dirTo, 64)
+	server, listener := runTestServer(t, dirTo)
 	defer server.Stop()
 
 	ctx := context.Background()
