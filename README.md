@@ -15,9 +15,13 @@ Package dirsync allows to sync specified directory from client to server over GR
 * Instant synchronization start by watching file system events inside directory
 * Synchronization deduping if currently in process of synchronization
 * Uses gogo/protobuf for faster Protobuf marshal/unmarshal
-* Works on Unix only at moment
+
+### Known limitations
+
 * Works only with directories and regular files
-* Does not maintain directory and structure permissions
+* Does not maintain directory and file permissions
+* Works on Unix only at moment
+* Consumes file desccriptor per each file in monitored directory on MacOS, see an [issue](https://github.com/fsnotify/fsnotify/issues/129)
 
 ### How it works
 
@@ -55,8 +59,9 @@ Change sth inside `dirsync_from` folder and this will be reflected inside `dirsy
 This was a weekend project, it works but still a lot of things can be improved:
 
 * Multitenancy
-* Make it cross-platform to handle os specific path separators
-* Better error handling - at moment client exits on every error
+* Preserve file and directory permissions
+* Make it cross-platform by handling OS specific path separators
+* Better error handling - at moment client terminates on every error
 * More clever decision on when to use rolling checksum upload
 * Bidirectional synchronization 🔥
 * This list is endless actually ... Just use Rsync or Dropbox maybe? 😄
